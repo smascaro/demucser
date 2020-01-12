@@ -1,0 +1,18 @@
+<html>
+    <head>
+        <!--<link rel="stylesheet" href="../css/bootstrap.min.css" type="text/css"/>-->
+        <link rel="stylesheet" src="../css/main.css" type="text/css"/>
+
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    </head>
+    <body>
+        <form action="/demucs" method="post">
+            <div class="form-group" id="demucsForm" style="margin-top: 92px;left: 33%;position: relative;">
+                <label for="ytLinkInput">Link to youtube song or video ID</label>
+                <input name=videoId class="form-control" id="ytLinkInput" aria-describedby="linkHelp" placeholder="Enter link to youtube song" style="width: 30%">
+                <small id="linkHelp" class="form-text text-muted">Example: <b>https://www.youtube.com/watch?v=1Cqr7CECkvg</b> or <b>1Cqr7CECkvg</b></small>
+                <input type="submit" value="Demux!">
+            </div>
+        </form>
+    </body>
+</html>
