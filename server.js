@@ -6,6 +6,7 @@ const path = require('path')
 const child_process = require('child_process')
 const bodyParser = require('body-parser')
 const urlUtils = require('./js/url-utils')
+const os = require('os')
 const app = express()
 const router = express.Router();
 nunjucks.configure('.', {
@@ -18,6 +19,16 @@ app.use(bodyParser.urlencoded({
 
 const ffmpeg = path.resolve('C:\\Users\\msk14\\ffmpeg\\bin\\ffmpeg.exe')
 const demucsRunnerBat = path.resolve(__dirname, 'scripts', 'demucs.bat')
+
+var processedFilesDir = path.resolve(os.homedir(), "demucs", "separated", "demucs")
+
+function setFileMappings(mappings) {
+    mappings.guitar = path.resolve(processedFilesDir, "other.wav")
+    mappings.bass = path.resolve(processedFilesDir, "bass.wav")
+    mappings.vocals = path.resolve(processedFilesDir, "vocals.wav")
+    mappings.drums = path.resolve(processedFilesDir, "drums.wav")
+    return mappings
+}
 
 function getTimestamp() {
     const now = new Date()
@@ -62,6 +73,8 @@ app.post('/demucs', async (req, res) => {
     const timestamp = getTimestamp();
     var videoId = ''
     const urlParam = req.body.videoId;
+    console.log(req.body)
+    const tracksToMix = req.body.tracksPicker
     if (urlParam.includes('youtube')) {
         videoId = urlUtils.getParameter(urlParam, 'v')
     } else if (urlParam.includes('youtu.be')) {
@@ -74,6 +87,7 @@ app.post('/demucs', async (req, res) => {
     const initialFilename = downloadOutput;
     console.log('[' + timestamp + '] - ' + videoUrl)
     downloadOutput = path.resolve(__dirname, 'downloads', downloadOutput)
+    var filenameMappings = {}
     res.status(200).send('Working on your petition!!')
     let ytStream = ytdl(videoUrl, {
             filter: format => format.audioBitrate && !format.encoding
@@ -82,6 +96,10 @@ app.post('/demucs', async (req, res) => {
             console.log(`Video title: ${info.title}`)
             fileName = `${timestamp}_${info.title.split(`'`).join('').split(':').join('').split('"').join('')}.mp4`;
             downloadOutput = path.resolve(__dirname, 'downloads', fileName);
+            const finalDir = fileName.substring(0, fileName.lastIndexOf('.'))
+            processedFilesDir = path.resolve(processedFilesDir, finalDir)
+            filenameMappings = setFileMappings(filenameMappings)
+            console.log(filenameMappings)
             console.log(`downloaded file path: ${downloadOutput}`)
             ytStream.pipe(fs.createWriteStream(downloadOutput))
 
@@ -144,14 +162,33 @@ app.post('/demucs', async (req, res) => {
                         })
                         demucs.on('exit', (code) => {
                             console.log(`Demucs exited with code ${code}`)
+                            //Mix tracks if asked
+                            if (tracksToMix.length > 0) {
+                                var ffmpegArgsForMixingTask = []
+                                for (var i = 0; i < tracksToMix.length; i++) {
+                                    //                                    inputsParam = inputsParam + '-i ' + filenameMappings[tracksToMix[i]] + ' '
+                                    ffmpegArgsForMixingTask = ffmpegArgsForMixingTask.concat('-i')
+                                    ffmpegArgsForMixingTask = ffmpegArgsForMixingTask.concat(filenameMappings[tracksToMix[i]])
+//                                    inputsParam = `${inputsParam}-i "${filenameMappings[tracksToMix[i]]}" `
+
+                                }
+                                const mixedFilePath = `${path.resolve(processedFilesDir, tracksToMix.join('_') + '.mp3')}`
+                                ffmpegArgsForMixingTask = ffmpegArgsForMixingTask.concat([
+                                                '-filter_complex',
+                                                `amix=inputs=${tracksToMix.length}:duration=first:dropout_transition=2`,
+                                                mixedFilePath
+                                                ])
+                                console.log(`ffmpeg ${ffmpegArgsForMixingTask}`)
+                                const process = child_process.spawnSync(ffmpeg, ffmpegArgsForMixingTask);
+                                if (process.stderr) {
+                                    console.log('Stderr: ' + process.stderr.toString());
+                                    //res.status(200).send('Error while converting to mp3')
+                                } else {
+                                    //res.status(200).send('Video downloaded and converted to mp3 succesfully.')
+                                }
+                                console.log(`Finished track mixing. Mixed file in: ${mixedFilePath}`);
+                            }
                         })
-                        //                        const demucsProc = child_process.spawnSync(demucsRunnerBat, batArgs)
-                        //                        if (demucsProc.stderr) {
-                        //                            console.log(demucsProc.stderr)
-                        //                        }
-                        //                        if (demucsProc.stdout) {
-                        //                            console.log(demucsProc.stdout)
-                        //                        }
                     } else {
                         console.log(`File ${newAudioFilePath} has size 0.`)
                     }
