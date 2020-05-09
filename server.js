@@ -26,12 +26,16 @@ app.use(bodyParser.urlencoded({
     extended: true
 }))
 
+var config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+
+console.log(config)
+
 const pool = mysql.createPool({
-    host:'localhost',
-    user:'admin',
-    password:'SM01!MiSkl',
-    database:'sm01'
-});
+    host: config.db_host,
+    user: config.db_user,
+    password: config.db_password,
+    database: config.db_database
+})
 
 global.promisePool = pool;
 statusMap= new Map();
