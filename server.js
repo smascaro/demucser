@@ -9,8 +9,9 @@ const bodyParser = require('body-parser')
 const urlUtils = require('./js/url-utils')
 const os = require('os')
 const app = express()
-const router = express.Router();
 const mysql = require('mysql2/promise');
+const express_locale = require('express-locale')
+
 const {
     getAllItems,
     getItemByVideoId,
@@ -22,24 +23,30 @@ const {
     updateItem,
     updatePlayCount
 } = require('./routes/dbaccess')
+
+const router = express.Router();
 nunjucks.configure('.', {
     express: app
 });
 
-app.use(bodyParser.urlencoded({
-    extended: true
-}))
+app
+    .use(express_locale())
+    .use(bodyParser.urlencoded({
+        extended: true
+    }))
+    
+var config = JSON.parse(fs.readFileSync("config/config.json", "utf8"));
 
 //DATABASE PARAMETERS INITIALIZATION
-var config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+var db_settings = JSON.parse(fs.readFileSync('config/db.json', 'utf8'));
 
-console.log(config)
+console.log(db_settings)
 
 const pool = mysql.createPool({
-    host: config.db_host,
-    user: config.db_user,
-    password: config.db_password,
-    database: config.db_database
+    host: db_settings.host,
+    user: db_settings.user,
+    password: db_settings.password,
+    database: db_settings.database
 })
 
 global.promisePool = pool;
@@ -72,7 +79,7 @@ function getTimestamp() {
 
 
 app.get('/', (req, res) => {
-    console.log('Accessed: /')
+    console.log(`Locale: ${req.locale}. Accessed: /`)
     res.sendFile(__dirname + "\\html\\main.html")
 })
 function convertFile(path, format) {
@@ -143,8 +150,6 @@ app.get('/fetch/:id/:q', async (req, res) => {
                     const files = values.map(p => ({ path: p, value: p.split('\\')[p.split('\\').length - 1] }))
                     console.log(files)
                     insertConversion(id, q)
-                    // res.status(200).zip(files);
-
                 }, reason => {
                     console.log(`Reason: ${reason}`)
                     res.setHeader('Content-Disposition', 'attachment');
@@ -390,6 +395,6 @@ app.get('/test', async (req, res) => {
 })
 
 
-app.listen(8081, function () {
-    console.log('Server running at http://127.0.0.1:8081/')
+app.listen(config.port, function () {
+    console.log(`Server running at http://127.0.0.1:${config.port}/`)
 })
