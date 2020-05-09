@@ -21,6 +21,18 @@ module.exports = {
             return rows;
         } catch (e) {
             console.error(e)
+            return []
+        }
+    },
+    getAvailableQualities: async() =>{
+        let query = "SELECT `key`, `format`, `isDefault` FROM sm01.tqualitysettings;"
+        try {
+            const [rows] = await promisePool.query(query);
+            console.log(rows);
+            return rows;
+        } catch (e) {
+            console.error(e)
+            return []
         }
     },
     getItemByVideoId: async (videoId) => {
@@ -30,9 +42,31 @@ module.exports = {
         try {
             const [rows] = await promisePool.query(query);
             console.log(rows);
+            if(rows.length) {
+                return rows[0]
+            } else {
+                return null
+            }
+        } catch (e) {
+            console.error(e)
+            return []
+        }
+    },
+    getConversionsByVideoId: async (videoId) => {
+        var item = await module.exports.getItemByVideoId(videoId)
+        if (!item) {
+            console.error(`Error while getting Item object with Id ${videoId}`)
+            return false;
+        } 
+        let queryConversions = 'SELECT `separatedId`, `qualityKey` FROM sm01.tconverted where `separatedId` = ?;'
+        let args = [item.id]
+        try {
+            const [rows] = await promisePool.query(queryConversions, args);
+            console.log(rows);
             return rows;
         } catch (e) {
             console.error(e)
+            return []
         }
     },
     insertItem: async (itemToInsert) => {
@@ -56,9 +90,28 @@ module.exports = {
             try {
                 await promisePool.execute(insertQuery, args)
                 console.log(`Inserted row with Video ID: ${videoId}`)
+                return true
             } catch (e) {
                 console.error(e)
+                return false
             }
+        }
+    },
+    insertConversion: async(videoId, quality) => {
+        var item = await module.exports.getItemByVideoId(videoId)
+        if (!item) {
+            console.error(`Error while getting Item object with Id ${videoId}`)
+            return false;
+        } 
+        let queryInsert = 'insert into `sm01`.`tconverted`(`separatedId`,`qualityKey`) values(?,?)';
+        let args = [item.id, quality.toLowerCase()];
+        try {
+            await promisePool.execute(queryInsert, args);
+            console.log(`Inserted conversion of video with Id ${videoId} to format with quality: ${quality}`);
+            return true;
+        } catch(e) {
+            console.error(e);
+            return false;
         }
     },
     updateItem: async (itemToUpdate) => {
@@ -76,8 +129,10 @@ module.exports = {
             try {
                 await promisePool.execute(updateQuery, args)
                 console.log(`Updated row with Video ID: ${videoId}`)
+                return true;
             } catch (e) {
                 console.error(e)
+                return false
             }
         }
     },
@@ -87,8 +142,10 @@ module.exports = {
             try {
                 await promisePool.execute(updateQuery, args)
                 console.log(`Incremented play count on item with Video ID: ${videoId}`)
+                return true
             } catch (e) {
                 console.error(e)
+                return false
             }
         
     }
