@@ -121,6 +121,7 @@ function convertFile(path, format) {
 }
 app.get('/fetch/:id/:q', async (req, res) => {
     var { id, q } = req.params
+    console.log(`Access to: /fetch/${id}/${q}`)
 
     const pathFiles = path.resolve(targetDir, id)
     const pathVocals = path.resolve(pathFiles, 'vocals.wav')
@@ -357,8 +358,23 @@ app.post('/demucs', async (req, res) => {
 
 app.get('/availableTracks', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
-    var tracks = await getAllItems()
-    res.status(200).send(JSON.stringify(tracks));
+    const limit = req.query.limit
+    const offset= req.query.offset
+    const sort = req.query.sort
+
+    var tracks = await getAllItems({
+        limit:limit,
+        offset:offset,
+        sort: sort
+    })
+    const response = {
+        result: {
+            code: 0,
+            message: ''
+        },
+        items: tracks
+    }
+    res.status(200).send(JSON.stringify(response));
 })
 
 async function checkVideoAlreadyDemucsed(id) {

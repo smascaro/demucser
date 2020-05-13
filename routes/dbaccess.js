@@ -1,17 +1,60 @@
 module.exports = {
-    getAllItems: async () => {
+    getAllItems: async (criteria) => {
+        let postQueryConditions = " "
+        if (criteria) {
+            if (criteria.sort) {
+                switch (criteria.sort) {
+                    case "newest":
+                        postQueryConditions += "order by `requestedTimestamp` desc"
+                        break;
+                    case "oldest":
+                        postQueryConditions += "order by `requestedTimestamp` asc"
+                        break;
+                    case "popular":
+                        postQueryConditions += "order by `playedCount` desc"
+                        break;
+                    default:
+                        console.warn(`Sorting criteria not implemented: ${criteria.sort}`)
+                        break;
+                }
+            }
+
+            if ((criteria.limit || criteria.limit === 0)) {
+                var validLimit = (parseInt(criteria.limit) !== NaN)
+                if (!validLimit) {
+                    console.warn(`${criteria.limit} is not a valid limit. No limit or offset will be applied.`)
+                } else {
+                    //Valid limit
+                    postQueryConditions += ` limit ${criteria.limit}`
+                }
+                if (validLimit) {
+                    //If limit was valid then we can check for offset
+                    if (criteria.offset || criteria.offset === 0) {
+                        var validOffset = (parseInt(criteria.offset) !== NaN)
+                        if (!validOffset) {
+                            console.warn(`${criteria.offset} is not a valid offset. No offset will be applied.`)
+                        } else {
+                            //Valid offset
+                            postQueryConditions += ` offset ${criteria.offset}`
+                        }
+                    }
+                }
+            }
+
+
+        }
         let query = "select tsep.* \
                     from sm01.tseparated as tsep \
-                    inner join sm01.tstatus as tstat on tstat.`key` = tsep.`status`"
+                    inner join sm01.tstatus as tstat on tstat.`key` = tsep.`status`" + postQueryConditions
         try {
             const [rows] = await promisePool.query(query);
             console.log(rows);
             return rows
-        } catch(e) {
+        } catch (e) {
             console.error(e)
             return [];
         }
-        
+
     },
     getAvailableStatus: async () => {
         let query = "select `key`, `value` from sm01.tstatus"
@@ -24,7 +67,7 @@ module.exports = {
             return []
         }
     },
-    getAvailableQualities: async() =>{
+    getAvailableQualities: async () => {
         let query = "SELECT `key`, `format`, `isDefault` FROM sm01.tqualitysettings;"
         try {
             const [rows] = await promisePool.query(query);
@@ -42,7 +85,7 @@ module.exports = {
         try {
             const [rows] = await promisePool.query(query);
             console.log(rows);
-            if(rows.length) {
+            if (rows.length) {
                 return rows[0]
             } else {
                 return null
@@ -57,7 +100,7 @@ module.exports = {
         if (!item) {
             console.error(`Error while getting Item object with Id ${videoId}`)
             return false;
-        } 
+        }
         let queryConversions = 'SELECT `separatedId`, `qualityKey` FROM sm01.tconverted where `separatedId` = ?;'
         let args = [item.id]
         try {
@@ -97,19 +140,19 @@ module.exports = {
             }
         }
     },
-    insertConversion: async(videoId, quality) => {
+    insertConversion: async (videoId, quality) => {
         var item = await module.exports.getItemByVideoId(videoId)
         if (!item) {
             console.error(`Error while getting Item object with Id ${videoId}`)
             return false;
-        } 
+        }
         let queryInsert = 'insert into `sm01`.`tconverted`(`separatedId`,`qualityKey`) values(?,?)';
         let args = [item.id, quality.toLowerCase()];
         try {
             await promisePool.execute(queryInsert, args);
             console.log(`Inserted conversion of video with Id ${videoId} to format with quality: ${quality}`);
             return true;
-        } catch(e) {
+        } catch (e) {
             console.error(e);
             return false;
         }
@@ -139,14 +182,14 @@ module.exports = {
     updatePlayCount: async (videoId) => {
         let updateQuery = `UPDATE sm01.tseparated SET \`playedCount\` = \`playedCount\` + 1 where \`videoId\` = ?`;
         let args = [videoId]
-            try {
-                await promisePool.execute(updateQuery, args)
-                console.log(`Incremented play count on item with Video ID: ${videoId}`)
-                return true
-            } catch (e) {
-                console.error(e)
-                return false
-            }
-        
+        try {
+            await promisePool.execute(updateQuery, args)
+            console.log(`Incremented play count on item with Video ID: ${videoId}`)
+            return true
+        } catch (e) {
+            console.error(e)
+            return false
+        }
+
     }
 }
