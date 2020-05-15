@@ -12,20 +12,8 @@ const app = express()
 const mysql = require('mysql2/promise');
 const express_locale = require('express-locale')
 const { promisify } = require('util')
-
-const {
-    getAllItems,
-    getItemByVideoId,
-    getAvailableStatus,
-    getAvailableQualities,
-    getConversionsByVideoId,
-    insertItem,
-    insertConversion,
-    updateItem,
-    updatePlayCount
-} = require('./routes/dbaccess')
-
-const unlinkAsync = promisify(fs.unlink)
+const {ApiResponse}=require('./js/models')
+const db = require('./routes/dbaccess')
 
 const router = express.Router();
 nunjucks.configure('.', {
@@ -55,7 +43,7 @@ const pool = mysql.createPool({
 global.promisePool = pool;
 const statusMap = new Map();
 (async () => {
-    var statuses = await getAvailableStatus();
+    var statuses = await db.getAvailableStatus();
     statuses.forEach((e) => { statusMap.set(e.value, e.key); });
     console.log(`PREPROCESSING status id is ${statusMap.get("PREPROCESSING")}`)
 })();
@@ -63,7 +51,7 @@ const statusMap = new Map();
 const qualitiesMap = new Map();
 var defaultQuality = new Object();
 (async () => {
-    var qualitiesFromDb = await getAvailableQualities()
+    var qualitiesFromDb = await db.getAvailableQualities()
     defaultQuality = qualitiesFromDb.find(q => q.isDefault == 1)
     qualitiesFromDb.forEach((q) => { qualitiesMap.set(q.key, q.format) })
     console.log(`Format defined for quality LOW is ${qualitiesMap.get("low")}`)
@@ -123,63 +111,71 @@ app.get('/fetch/:id/:q', async (req, res) => {
     var { id, q } = req.params
     console.log(`Access to: /fetch/${id}/${q}`)
 
-    const pathFiles = path.resolve(targetDir, id)
-    const pathVocals = path.resolve(pathFiles, 'vocals.wav')
-    const pathOther = path.resolve(pathFiles, 'other.wav')
-    const pathBass = path.resolve(pathFiles, 'bass.wav')
-    const pathDrums = path.resolve(pathFiles, 'drums.wav')
+    const item = await db.getItemByVideoId(id)
+    if (item) {
+        const pathFiles = path.resolve(targetDir, id)
+        const pathVocals = path.resolve(pathFiles, 'vocals.wav')
+        const pathOther = path.resolve(pathFiles, 'other.wav')
+        const pathBass = path.resolve(pathFiles, 'bass.wav')
+        const pathDrums = path.resolve(pathFiles, 'drums.wav')
 
-    const format = qualitiesMap.get(q)
-    q = q.toLowerCase()
-    var errorHappened = false;
-    if (q != defaultQuality.key) {
-        const formatsAvailable = await getConversionsByVideoId(id);
-        const isAlreadyAvailable = formatsAvailable.find(f => f.qualityKey == q);
-        if (!isAlreadyAvailable) {
-            console.log(`Needs to be transcoded to ${format}`);
-            const promiseVocalsConversion = convertFile(pathVocals, format)
-            const promiseOtherConversion = convertFile(pathOther, format)
-            const promiseBassConversion = convertFile(pathBass, format)
-            const promiseDrumsConversion = convertFile(pathDrums, format)
-            await Promise.all([
-                promiseVocalsConversion,
-                promiseOtherConversion,
-                promiseBassConversion,
-                promiseDrumsConversion]).then(values => {
-                    const files = values.map(p => ({ path: p, value: p.split('\\')[p.split('\\').length - 1] }))
-                    console.log(files)
-                    insertConversion(id, q)
-                }, reason => {
-                    console.log(`Reason: ${reason}`)
-                    res.setHeader('Content-Disposition', 'attachment');
-                    res.status(200).send(`Error convertiendo las pistas a ${format}`)
-                    errorHappened = true;
-                })
+        const format = qualitiesMap.get(q)
+        q = q.toLowerCase()
+        var errorHappened = false;
+        if (q != defaultQuality.key) {
+            const formatsAvailable = await db.getConversionsByVideoId(id);
+            const isAlreadyAvailable = formatsAvailable.find(f => f.qualityKey == q);
+            if (!isAlreadyAvailable) {
+                console.log(`Needs to be transcoded to ${format}`);
+                const promiseVocalsConversion = convertFile(pathVocals, format)
+                const promiseOtherConversion = convertFile(pathOther, format)
+                const promiseBassConversion = convertFile(pathBass, format)
+                const promiseDrumsConversion = convertFile(pathDrums, format)
+                await Promise.all([
+                    promiseVocalsConversion,
+                    promiseOtherConversion,
+                    promiseBassConversion,
+                    promiseDrumsConversion]).then(values => {
+                        const files = values.map(p => ({ path: p, value: p.split('\\')[p.split('\\').length - 1] }))
+                        console.log(files)
+                        db.insertConversion(id, q)
+                    }, reason => {
+                        console.log(`Reason: ${reason}`)
+                        res.setHeader('Content-Disposition', 'attachment');
+                        res.status(200).send(`Error convertiendo las pistas a ${format}`)
+                        errorHappened = true;
+                    })
+            }
         }
-    }
-    if (!errorHappened) {
-        const finalVocalsFileName = `vocals.${format}`
-        const finalPathVocals = path.resolve(pathFiles, finalVocalsFileName)
-        const finalOtherFileName = `other.${format}`
-        const finalPathOther = path.resolve(pathFiles, finalOtherFileName)
-        const finalBassFileName = `bass.${format}`
-        const finalPathBass = path.resolve(pathFiles, finalBassFileName)
-        const finalDrumsFileName = `drums.${format}`
-        const finalPathDrums = path.resolve(pathFiles, finalDrumsFileName)
-        const files = [
-            { path: finalPathVocals, name: finalVocalsFileName },
-            { path: finalPathOther, name: finalOtherFileName },
-            { path: finalPathBass, name: finalBassFileName },
-            { path: finalPathDrums, name: finalDrumsFileName }
-        ]
-        res.setHeader('Content-Disposition', 'attachment');
-        res.status(200).zip(files, `${id}_${q}_q.zip`)
+        if (!errorHappened) {
+            const finalVocalsFileName = `vocals.${format}`
+            const finalPathVocals = path.resolve(pathFiles, finalVocalsFileName)
+            const finalOtherFileName = `other.${format}`
+            const finalPathOther = path.resolve(pathFiles, finalOtherFileName)
+            const finalBassFileName = `bass.${format}`
+            const finalPathBass = path.resolve(pathFiles, finalBassFileName)
+            const finalDrumsFileName = `drums.${format}`
+            const finalPathDrums = path.resolve(pathFiles, finalDrumsFileName)
+            const files = [
+                { path: finalPathVocals, name: finalVocalsFileName },
+                { path: finalPathOther, name: finalOtherFileName },
+                { path: finalPathBass, name: finalBassFileName },
+                { path: finalPathDrums, name: finalDrumsFileName }
+            ]
+            res.setHeader('Content-Disposition', 'attachment');
+            res.status(200).zip(files, `${id}_${q}_q.zip`)
 
+        }
+    } else {
+        //Track not available
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).send(JSON.stringify(new ApiResponse(-1, 'Track is not available, you must request it first, then you will be able to fetch it')))
     }
 })
 
 app.post('/demucs', async (req, res) => {
     try {
+        res.setHeader('Content-Type', 'application/json')
         console.log('Accessed: /demucs')
         var videoId = ''
         const urlParam = req.body.videoId;
@@ -192,7 +188,8 @@ app.post('/demucs', async (req, res) => {
             videoId = urlUtils.getResource(urlParam)
         } else {
             console.log(`Url not supported: ${urlParam}`)
-            res.status(200).send(`The Url is either an invalid link or not a youtube video. (Url: ${urlParam})`)
+            // res.status(200).send(`The Url is either an invalid link or not a youtube video. (Url: ${urlParam})`)
+            res.status(200).send(new ApiResponse(-3, `The Url is either an invalid link or not a youtube video. (Url: ${urlParam})`).jsonify())
         }
         var alreadyProcessed = await checkVideoAlreadyDemucsed(videoId)
         if (!alreadyProcessed) {
@@ -208,14 +205,15 @@ app.post('/demucs', async (req, res) => {
                 thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
                 status: statusMap.get("INITIAL")
             }
-            await insertItem(item)
+            await db.insertItem(item)
             const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
             var fileName = ''
             var downloadOutput = `${videoId}.mp4`;
             console.log(videoUrl)
             downloadOutput = path.resolve(__dirname, 'downloads', downloadOutput)
             var filenameMappings = {}
-            res.status(200).send('Working on your petition!!')
+            // res.status(200).send('Working on your petition!!')
+            res.status(200).send(new ApiResponse(2, 'Working on your request...').jsonify())
             let ytStream = ytdl(videoUrl, {
                 filter: format => format.audioBitrate && !format.encoding
             })
@@ -227,7 +225,7 @@ app.post('/demucs', async (req, res) => {
                     item.length = info.length_seconds
                     item.status = statusMap.get('PREPROCESSING')
 
-                    await updateItem(item)
+                    await db.updateItem(item)
 
                     fileName = `${videoId}.mp4`;
                     downloadOutput = path.resolve(__dirname, 'downloads', fileName);
@@ -293,7 +291,7 @@ app.post('/demucs', async (req, res) => {
                                     newAudioFilePath
                                 ];
                                 item.status = statusMap.get("PROCESSING");
-                                await updateItem(item);
+                                await db.updateItem(item);
                                 const demucs = child_process.spawn('cmd.exe', ['/c', demucsRunnerBat, newAudioFilePath])
                                 demucs.stdout.on('data', (data) => {
                                     console.log('Stdout> ' + data.toString());
@@ -307,7 +305,7 @@ app.post('/demucs', async (req, res) => {
                                             let progressTmp = splitOutput[0].trim().replace('%', '')
                                             console.log(`Progress: ${progressTmp}`)
                                             item.progress = parseInt(progressTmp)
-                                            updateItem(item)
+                                            db.updateItem(item)
                                         }
                                     }
                                 })
@@ -337,7 +335,7 @@ app.post('/demucs', async (req, res) => {
                                     item.progress = 100;
                                     item.status = statusMap.get('FINISHED');
                                     item.finished = new Date();
-                                    updateItem(item);
+                                    db.updateItem(item);
                                 })
                             } else {
                                 console.log(`File ${newAudioFilePath} has size 0.`)
@@ -347,24 +345,24 @@ app.post('/demucs', async (req, res) => {
                 })
 
         } else {
-            updatePlayCount(videoId)
-            res.status(200).send('Video already processed.')
+            db.updatePlayCount(videoId)
+            res.status(200).send(new ApiResponse(1, 'Video already processed.').jsonify())
         }
-    } catch(e) {
+    } catch (e) {
         console.error(e)
-        res.status(500).send('Internal unknown error')
+        res.status(200).send(new ApiResponse(-2, "Internal error").jsonify())
     }
 });
 
 app.get('/availableTracks', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     const limit = req.query.limit
-    const offset= req.query.offset
+    const offset = req.query.offset
     const sort = req.query.sort
 
-    var tracks = await getAllItems({
-        limit:limit,
-        offset:offset,
+    var tracks = await db.getAllItems({
+        limit: limit,
+        offset: offset,
         sort: sort
     })
     const response = {
@@ -379,8 +377,8 @@ app.get('/availableTracks', async (req, res) => {
 
 async function checkVideoAlreadyDemucsed(id) {
     console.log(`CheckVideoAlreadyDemucsed called with parameter ${id}`)
-    var rowFound = await getItemByVideoId(id);
-    return rowFound?.length > 0;
+    var rowFound = await db.getItemByVideoId(id);
+    return rowFound;
 }
 
 app.get('/test/:id', async (req, res) => {
@@ -396,7 +394,7 @@ app.get('/test/:id', async (req, res) => {
 
 app.get('/test', async (req, res) => {
     console.log(statusMap)
-    getAllItems()
+    db.getAllItems()
     res.status(200).send('Check console for results');
 
 })
