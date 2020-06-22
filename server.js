@@ -14,7 +14,8 @@ const express_locale = require('express-locale')
 const { promisify } = require('util')
 const {ApiResponse}=require('./js/models')
 const db = require('./routes/dbaccess')
-
+const schedule = require('node-schedule')
+const integritycheck = require('./js/integrity-check-service')
 const router = express.Router();
 nunjucks.configure('.', {
     express: app
@@ -47,6 +48,7 @@ const statusMap = new Map();
     statuses.forEach((e) => { statusMap.set(e.value, e.key); });
     console.log(`PREPROCESSING status id is ${statusMap.get("PREPROCESSING")}`)
 })();
+global.statusMap = statusMap
 
 const qualitiesMap = new Map();
 var defaultQuality = new Object();
@@ -56,12 +58,16 @@ var defaultQuality = new Object();
     qualitiesFromDb.forEach((q) => { qualitiesMap.set(q.key, q.format) })
     console.log(`Format defined for quality LOW is ${qualitiesMap.get("low")}`)
 })();
-
 //END DATABASE PARAMETERS INITIALIZATION
 
 const ffmpeg = path.resolve("C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe")
 const demucsRunnerBat = path.resolve(__dirname, 'scripts', 'demucs.bat')
 const targetDir = path.resolve(os.homedir(), 'demucs', 'separated', 'demucs')
+
+schedule.scheduleJob('*/1 * * * *', async function(){
+    console.log('Time to run integrity check')
+    await integritycheck.checkDatabaseIntegrity(targetDir)
+})
 
 app.get('/', (req, res) => {
     console.log(`Locale: ${req.locale}. Accessed: /`)
@@ -173,12 +179,12 @@ app.get('/fetch/:id/:q', async (req, res) => {
     }
 })
 
-app.post('/demucs', async (req, res) => {
+app.post('/demucs/:videoId', async (req, res) => {
     try {
         res.setHeader('Content-Type', 'application/json')
         console.log('Accessed: /demucs')
-        var videoId = ''
-        const urlParam = req.body.videoId;
+        var {videoId} = req.params
+        const urlParam = videoId
         console.log(req.body)
         const tracksToMix = req.body.tracksPicker
         var processedFilesDir = targetDir;
@@ -198,11 +204,11 @@ app.post('/demucs', async (req, res) => {
             const item = {
                 videoId: videoId,
                 title: '',
-                length: 0,
+                secondsLong: 0,
                 progress: 0,
-                requested: new Date(),
-                finished: null,
-                thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+                requestedTimestamp: new Date(),
+                finishedTimestamp: null,
+                thumbnailUrl: '',
                 status: statusMap.get("INITIAL")
             }
             await db.insertItem(item)
@@ -220,9 +226,16 @@ app.post('/demucs', async (req, res) => {
                 .on('info', async (info) => {
                     console.log(`Video title: ${info.title}`)
                     console.log(`Length: ${info.length_seconds} seconds`)
-
+                    var thumbnailUrl = ""
+                    try {
+                        thumbnailUrl=
+                            info.playerResponse.videoDetails.thumbnail.thumbnails[info.playerResponse.videoDetails.thumbnail.thumbnails.length-1]
+                    } catch (error) {
+                        console.error("Thumbnail URL could not be fetched. Fallback to defaul URL.")
+                        thumbnailUrl=`https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`
+                    }
                     item.title = info.title
-                    item.length = info.length_seconds
+                    item.secondsLong = info.length_seconds
                     item.status = statusMap.get('PREPROCESSING')
 
                     await db.updateItem(item)
@@ -240,7 +253,9 @@ app.post('/demucs', async (req, res) => {
                     ytStream.pipe(fs.createWriteStream(downloadOutput))
 
                 })
-                .on('error', console.error)
+                .on('error', (e) => {
+                    console.error(e)
+                })
                 .on('progress', (chunkLength, downloaded, total) => {
                     const percent = downloaded / total;
 
@@ -334,7 +349,7 @@ app.post('/demucs', async (req, res) => {
                                     console.log(`Finished track separation.`);
                                     item.progress = 100;
                                     item.status = statusMap.get('FINISHED');
-                                    item.finished = new Date();
+                                    item.finishedTimestamp = new Date();
                                     db.updateItem(item);
                                 })
                             } else {
@@ -360,10 +375,12 @@ app.get('/availableTracks', async (req, res) => {
     const offset = req.query.offset
     const sort = req.query.sort
 
+    //TODO: Ensure Ok status
     var tracks = await db.getAllItems({
         limit: limit,
         offset: offset,
-        sort: sort
+        sort: sort,
+        omitErrors: true
     })
     const response = {
         result: {

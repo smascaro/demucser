@@ -2,16 +2,19 @@ module.exports = {
     getAllItems: async (criteria) => {
         let postQueryConditions = " "
         if (criteria) {
+            if(criteria.omitErrors) {
+                postQueryConditions += ` where tstat.value <>'ERROR'`
+            }
             if (criteria.sort) {
                 switch (criteria.sort) {
                     case "newest":
-                        postQueryConditions += "order by `requestedTimestamp` desc"
+                        postQueryConditions += " order by `requestedTimestamp` desc"
                         break;
                     case "oldest":
-                        postQueryConditions += "order by `requestedTimestamp` asc"
+                        postQueryConditions += " order by `requestedTimestamp` asc"
                         break;
                     case "popular":
-                        postQueryConditions += "order by `playedCount` desc"
+                        postQueryConditions += " order by `playedCount` desc"
                         break;
                     default:
                         console.warn(`Sorting criteria not implemented: ${criteria.sort}`)
@@ -116,11 +119,11 @@ module.exports = {
         console.log('insertItem called with parameter: ' + itemToInsert)
         const videoId = itemToInsert.videoId ?? ''
         const title = itemToInsert.title ?? ''
-        const length = itemToInsert.length ?? ''
+        const length = itemToInsert.secondsLong ?? ''
         const progress = itemToInsert.progress ?? 0
         const status = itemToInsert.status ?? 0
-        const requestedTimestamp = itemToInsert.requested ?? null
-        const finishedTimestamp = itemToInsert.finished ?? null
+        const requestedTimestamp = itemToInsert.requestedTimestamp ?? null
+        const finishedTimestamp = itemToInsert.finishedTimestamp ?? null
         const thumbnailUrl = itemToInsert.thumbnailUrl ?? null
         if (videoId) {
             /*let insertQuery = `INSERT INTO \`sm01\`.\`tseparated\` (\`videoId\`,\`progress\`,\`status\`,\`requestedTimestamp\`,\`finishedTimestamp\`,\`title\`,\`secondsLong\`, \`thumbnailUrl\`) 
@@ -160,11 +163,11 @@ module.exports = {
     updateItem: async (itemToUpdate) => {
         const videoId = itemToUpdate.videoId ?? ''
         const title = itemToUpdate.title ?? ''
-        const length = itemToUpdate.length ?? ''
+        const length = itemToUpdate.secondsLong ?? ''
         const progress = itemToUpdate.progress ?? 0
         const status = itemToUpdate.status ?? 0
-        const requestedTimestamp = itemToUpdate.requested ?? null
-        const finishedTimestamp = itemToUpdate.finished ?? null
+        const requestedTimestamp = itemToUpdate.requestedTimestamp ?? null
+        const finishedTimestamp = itemToUpdate.finishedTimestamp ?? null
         const thumbnailUrl = itemToUpdate.thumbnailUrl ?? null
         if (videoId) {
             let updateQuery = `UPDATE \`sm01\`.\`tseparated\` SET \`title\` = ?, \`progress\` = ?, \`status\` = ?, \`requestedTimestamp\` = ?, \`finishedTimestamp\` = ?, \`secondsLong\` = ?, \`thumbnailUrl\` = ? WHERE (\`videoId\` = ?);`;
