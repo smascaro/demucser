@@ -4,7 +4,7 @@ export class DatabaseSettings{
 
     }
 
-    loadConfig(configFilePath:string) {
+    load(configFilePath:string) {
         return new Promise((resolve, reject)=>{
             fs.readFile(configFilePath, 'utf8', (err, data)=>{
                 if(!err){

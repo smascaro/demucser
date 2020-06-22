@@ -11,7 +11,7 @@ import { AppConfig } from './app-config'
     let db: Database
     const app = appWrapper.getApplication()
     const settings = new DatabaseSettings()
-    settings.loadConfig(path.resolve(__dirname, '../../config/db.json'))
+    settings.load(path.resolve(__dirname, '../../config/db.json'))
         .then(() => {
             db = new Database(settings)
         })

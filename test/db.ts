@@ -46,7 +46,7 @@ describe('Database', () => {
     it('should load settings correctly from a valid configuration file', async() => {
         const configFilePath =path.resolve(__dirname, '../config/db.json') 
         let settings = new DatabaseSettings()
-        await settings.loadConfig(configFilePath)
+        await settings.load(configFilePath)
             .then(async() => {
                 await fs.readFile(configFilePath, 'utf8', (error,data)=>{
                     const parsedData = JSON.parse(data)
