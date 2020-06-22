@@ -5,6 +5,7 @@ import { Database } from './db/database'
 import path from 'path'
 import { IStatus } from './model/status'
 import { AppConfig } from './app-config'
+import { ITrack } from './model/track'
 (async () => {
 
     const appWrapper: App = new App()
@@ -19,9 +20,9 @@ import { AppConfig } from './app-config'
     const config = new AppConfig()
     await config.load(path.resolve('./config/config.json'))
     app.get('/', (req, res) => {
-        db.getAvailableStatuses().then((rows) => {
+        db.getAllItems().then((rows) => {
             console.log(rows)
-            rows = <IStatus[]>rows
+            rows = <ITrack[]>rows
             res.send('Hello world')
         })
     })
