@@ -1,6 +1,6 @@
 import mysql = require('mysql2/promise')
 import { DatabaseSettings } from './database-settings'
-import { Status, IStatus } from '../model/status'
+import { IStatus } from '../model/status'
 import { ITrack, ITrackResult } from '../model/track'
 import { IQueryCriteria } from './query-criteria'
 import { IQuality } from '../model/quality'
