@@ -17,6 +17,7 @@ describe('Database', () => {
             expect(data).to.not.be.undefined
             expect(data).to.not.be.null
             expect(data).to.not.be.empty
+            
             let parsedData = JSON.parse(data)
             expect(parsedData).to.not.be.undefined
             expect(parsedData).to.not.be.null
@@ -42,22 +43,5 @@ describe('Database', () => {
 
         })
         expect(true).to.be.true
-    })
-    it('should load settings correctly from a valid configuration file', async() => {
-        const configFilePath =path.resolve(__dirname, '../config/db.json') 
-        let settings = new DatabaseSettings()
-        await settings.load(configFilePath)
-            .then(async() => {
-                await fs.readFile(configFilePath, 'utf8', (error,data)=>{
-                    const parsedData = JSON.parse(data)
-                    expect(settings.host).eq(parsedData.host)
-                    expect(settings.user).eq(parsedData.user)
-                    expect(settings.password).eq(parsedData.password)
-                    expect(settings.database).eq(parsedData.database)
-                })
-            })
-            // .catch((e)=>{
-            //     throw new Error(e)
-            // })
     })
 })
