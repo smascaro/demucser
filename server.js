@@ -4,6 +4,8 @@ const nunjucks = require('nunjucks')
 const ytdl = require('ytdl-core')
 const fs = require('fs')
 const path = require('path')
+require('dotenv').config()
+const process = require('process')
 const child_process = require('child_process')
 const bodyParser = require('body-parser')
 const urlUtils = require('./js/url-utils')
@@ -12,7 +14,7 @@ const app = express()
 const mysql = require('mysql2/promise');
 const express_locale = require('express-locale')
 const { promisify } = require('util')
-const {ApiResponse}=require('./js/models')
+const { ApiResponse } = require('./js/models')
 const db = require('./routes/dbaccess')
 const schedule = require('node-schedule')
 const integritycheck = require('./js/integrity-check-service')
@@ -27,18 +29,18 @@ app
         extended: true
     }))
 
-var config = JSON.parse(fs.readFileSync("config/config.json", "utf8"));
+// var config = JSON.parse(fs.readFileSync("config/config.json", "utf8"));
 
 //DATABASE PARAMETERS INITIALIZATION
-var db_settings = JSON.parse(fs.readFileSync('config/db.json', 'utf8'));
+// var db_settings = JSON.parse(fs.readFileSync('config/db.json', 'utf8'));
 
-console.log(db_settings)
+console.log(process.env)
 
 const pool = mysql.createPool({
-    host: db_settings.host,
-    user: db_settings.user,
-    password: db_settings.password,
-    database: db_settings.database
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE_NAME
 })
 
 global.promisePool = pool;
@@ -64,7 +66,7 @@ const ffmpeg = path.resolve("C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe")
 const demucsRunnerBat = path.resolve(__dirname, 'scripts', 'demucs.bat')
 const targetDir = path.resolve(os.homedir(), 'demucs', 'separated', 'demucs')
 
-schedule.scheduleJob('*/1 * * * *', async function(){
+schedule.scheduleJob('*/1 * * * *', async function () {
     console.log('Time to run integrity check')
     await integritycheck.checkDatabaseIntegrity(targetDir)
 })
@@ -183,7 +185,7 @@ app.post('/demucs/:videoId', async (req, res) => {
     try {
         res.setHeader('Content-Type', 'application/json')
         console.log('Accessed: /demucs')
-        var {videoId} = req.params
+        var { videoId } = req.params
         const urlParam = videoId
         console.log(req.body)
         const tracksToMix = req.body.tracksPicker
@@ -228,11 +230,11 @@ app.post('/demucs/:videoId', async (req, res) => {
                     console.log(`Length: ${info.length_seconds} seconds`)
                     var thumbnailUrl = ""
                     try {
-                        thumbnailUrl=
-                            info.playerResponse.videoDetails.thumbnail.thumbnails[info.playerResponse.videoDetails.thumbnail.thumbnails.length-1]
+                        thumbnailUrl =
+                            info.playerResponse.videoDetails.thumbnail.thumbnails[info.playerResponse.videoDetails.thumbnail.thumbnails.length - 1]
                     } catch (error) {
                         console.error("Thumbnail URL could not be fetched. Fallback to defaul URL.")
-                        thumbnailUrl=`https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`
+                        thumbnailUrl = `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`
                     }
                     item.title = info.title
                     item.secondsLong = info.length_seconds
@@ -417,6 +419,6 @@ app.get('/test', async (req, res) => {
 })
 
 
-app.listen(config.port, function () {
-    console.log(`Server running at http://127.0.0.1:${config.port}/`)
+app.listen(process.env.NODE_SERVER_PORT, function () {
+    console.log(`Server running at http://127.0.0.1:${process.env.NODE_SERVER_PORT}/`)
 })
