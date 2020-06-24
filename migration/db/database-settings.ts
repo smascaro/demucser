@@ -1,28 +1,20 @@
-import fs = require('fs')
-export class DatabaseSettings{
-    constructor(){
+import fs from 'fs'
+import process from 'process'
+
+export class DatabaseSettings {
+    host: string = ""
+    user: string = ""
+    password: string = ""
+    database: string = ""
+
+    constructor() {
 
     }
 
-    load(configFilePath:string) {
-        return new Promise((resolve, reject)=>{
-            fs.readFile(configFilePath, 'utf8', (err, data)=>{
-                if(!err){
-                    let config = JSON.parse(data)
-                    this.host=config.host
-                    this.user=config.user
-                    this.password=config.password
-                    this.database=config.database
-                    resolve()
-                } else {
-                    console.error(err)
-                    reject(err)
-                }
-            })
-        })
+    init() {
+        this.host = process.env.DB_HOST as string
+        this.user = process.env.DB_USER as string
+        this.password = process.env.DB_PASSWORD as string
+        this.database = process.env.DB_DATABASE_NAME as string
     }
-    host:string = ""
-    user:string = ""
-    password:string = ""
-    database:string = ""
 }
