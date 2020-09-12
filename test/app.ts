@@ -4,6 +4,7 @@ import { AppConfig } from "../migration/app-config"
 import { expect } from "chai"
 import path from 'path'
 describe('Application', () => {
+    /*
     it('should find an app configuration file', () => {
         fs.readFile(path.resolve(__dirname, '../config/config.json'), 'utf8', (error, data) => {
             expect(error ==null || error==undefined).to.be.true
@@ -27,6 +28,7 @@ describe('Application', () => {
         })
         expect(true).to.be.true
     })
+    */
     it('should be able to run application on any open port', () => {
         let app = new App()
         try {

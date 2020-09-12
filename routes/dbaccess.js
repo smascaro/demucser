@@ -2,7 +2,7 @@ module.exports = {
     getAllItems: async (criteria) => {
         let postQueryConditions = " "
         if (criteria) {
-            if(criteria.omitErrors) {
+            if (criteria.omitErrors) {
                 postQueryConditions += ` where tstat.value <>'ERROR'`
             }
             if (criteria.sort) {
@@ -82,12 +82,13 @@ module.exports = {
         }
     },
     getItemByVideoId: async (videoId) => {
-        let query = `select tsep.* 
+        let query = `select tsep.* , tstat.key as status_key, tstat.value as status_code, tstat.message as status_message
                     from sm01.tseparated as tsep 
+                    inner join sm01.tstatus as tstat on tstat.key = tsep.status
                     where tsep.\`videoId\` = '${videoId}'`
         try {
             const [rows] = await promisePool.query(query);
-            console.log(rows);
+            //console.log(rows);
             if (rows.length) {
                 return rows[0]
             } else {
@@ -125,13 +126,14 @@ module.exports = {
         const requestedTimestamp = itemToInsert.requestedTimestamp ?? null
         const finishedTimestamp = itemToInsert.finishedTimestamp ?? null
         const thumbnailUrl = itemToInsert.thumbnailUrl ?? null
+        const channelTitle = itemToInsert.channelTitle ?? ''
         if (videoId) {
             /*let insertQuery = `INSERT INTO \`sm01\`.\`tseparated\` (\`videoId\`,\`progress\`,\`status\`,\`requestedTimestamp\`,\`finishedTimestamp\`,\`title\`,\`secondsLong\`, \`thumbnailUrl\`) 
                                VALUES ('${videoId}', ${progress}, ${status}, ${finishedTimestamp ? ("'" + finishedTimestamp.toISOString() + "'" : 'NULL')}, ${finishedTimestamp ? ("'" + finishedTimestamp.toISOString() + "'" : 'NULL')}, '${title}', ${length}, '${thumbnailUrl}');`*/
 
-            let insertQuery = `INSERT INTO \`sm01\`.\`tseparated\` (\`videoId\`,\`progress\`,\`status\`,\`requestedTimestamp\`,\`finishedTimestamp\`,\`title\`,\`secondsLong\`, \`thumbnailUrl\`) 
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
-            let args = [videoId, progress, status, requestedTimestamp, finishedTimestamp, title, length, thumbnailUrl]
+            let insertQuery = `INSERT INTO \`sm01\`.\`tseparated\` (\`videoId\`,\`progress\`,\`status\`,\`requestedTimestamp\`,\`finishedTimestamp\`,\`title\`,\`secondsLong\`, \`thumbnailUrl\`, \`channelTitle\`) 
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+            let args = [videoId, progress, status, requestedTimestamp, finishedTimestamp, title, length, thumbnailUrl, channelTitle]
             console.log(`Query: ${insertQuery}`)
             try {
                 await promisePool.execute(insertQuery, args)
@@ -169,9 +171,10 @@ module.exports = {
         const requestedTimestamp = itemToUpdate.requestedTimestamp ?? null
         const finishedTimestamp = itemToUpdate.finishedTimestamp ?? null
         const thumbnailUrl = itemToUpdate.thumbnailUrl ?? null
+        const channelTitle = itemToUpdate.channelTitle ?? ''
         if (videoId) {
-            let updateQuery = `UPDATE \`sm01\`.\`tseparated\` SET \`title\` = ?, \`progress\` = ?, \`status\` = ?, \`requestedTimestamp\` = ?, \`finishedTimestamp\` = ?, \`secondsLong\` = ?, \`thumbnailUrl\` = ? WHERE (\`videoId\` = ?);`;
-            let args = [title, progress, status, requestedTimestamp, finishedTimestamp, length, thumbnailUrl, videoId]
+            let updateQuery = `UPDATE \`sm01\`.\`tseparated\` SET \`title\` = ?, \`progress\` = ?, \`status\` = ?, \`requestedTimestamp\` = ?, \`finishedTimestamp\` = ?, \`secondsLong\` = ?, \`thumbnailUrl\` = ?, \`channelTitle\` = ? WHERE (\`videoId\` = ?);`;
+            let args = [title, progress, status, requestedTimestamp, finishedTimestamp, length, thumbnailUrl, channelTitle, videoId]
             try {
                 await promisePool.execute(updateQuery, args)
                 console.log(`Updated row with Video ID: ${videoId}`)

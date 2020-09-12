@@ -66,10 +66,11 @@ const ffmpeg = path.resolve("C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe")
 const demucsRunnerBat = path.resolve(__dirname, 'scripts', 'demucs.bat')
 const targetDir = path.resolve(os.homedir(), 'demucs', 'separated', 'demucs')
 
-schedule.scheduleJob('*/1 * * * *', async function () {
-    console.log('Time to run integrity check')
-    await integritycheck.checkDatabaseIntegrity(targetDir)
-})
+
+//schedule.scheduleJob('*/1 * * * *', async function () {
+//  console.log('Time to run integrity check')
+//await integritycheck.checkDatabaseIntegrity(targetDir)
+//})
 
 app.get('/', (req, res) => {
     console.log(`Locale: ${req.locale}. Accessed: /`)
@@ -181,7 +182,11 @@ app.get('/fetch/:id/:q', async (req, res) => {
     }
 })
 
-app.post('/demucs/:videoId', async (req, res) => {
+app.get('/testdemucs/:videoId', demucs)
+
+app.post('/demucs/:videoId', demucs)
+
+async function demucs(req, res) {
     try {
         res.setHeader('Content-Type', 'application/json')
         console.log('Accessed: /demucs')
@@ -201,6 +206,7 @@ app.post('/demucs/:videoId', async (req, res) => {
         }
         var alreadyProcessed = await checkVideoAlreadyDemucsed(videoId)
         if (!alreadyProcessed) {
+            res.status(200).send(new ApiResponse(2, 'Working on your request...', { "track_id": videoId }).jsonify())
             console.log(`Video ID: ${videoId}`)
             //CREATE AND INSERT ITEM INTO DB
             const item = {
@@ -211,6 +217,7 @@ app.post('/demucs/:videoId', async (req, res) => {
                 requestedTimestamp: new Date(),
                 finishedTimestamp: null,
                 thumbnailUrl: '',
+                channelTitle: '',
                 status: statusMap.get("INITIAL")
             }
             await db.insertItem(item)
@@ -221,9 +228,10 @@ app.post('/demucs/:videoId', async (req, res) => {
             downloadOutput = path.resolve(__dirname, 'downloads', downloadOutput)
             var filenameMappings = {}
             // res.status(200).send('Working on your petition!!')
-            res.status(200).send(new ApiResponse(2, 'Working on your request...').jsonify())
             let ytStream = ytdl(videoUrl, {
-                filter: format => format.audioBitrate && !format.encoding
+                filter: 'audioonly',
+                quality: 'highestaudio',
+                highWaterMark: 1 << 25
             })
                 .on('info', async (info) => {
                     console.log(`Video title: ${info.title}`)
@@ -231,18 +239,20 @@ app.post('/demucs/:videoId', async (req, res) => {
                     var thumbnailUrl = ""
                     try {
                         thumbnailUrl =
-                            info.playerResponse.videoDetails.thumbnail.thumbnails[info.playerResponse.videoDetails.thumbnail.thumbnails.length - 1]
+                            info.playerResponse.videoDetails.thumbnail.thumbnails[info.playerResponse.videoDetails.thumbnail.thumbnails.length - 1].url
                     } catch (error) {
                         console.error("Thumbnail URL could not be fetched. Fallback to defaul URL.")
                         thumbnailUrl = `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`
                     }
-                    item.title = info.title
-                    item.secondsLong = info.length_seconds
+                    item.thumbnailUrl = thumbnailUrl
+                    item.channelTitle = info.playerResponse.videoDetails.author
+                    item.title = info.videoDetails.title
+                    item.secondsLong = info.videoDetails.lengthSeconds
                     item.status = statusMap.get('PREPROCESSING')
 
                     await db.updateItem(item)
 
-                    fileName = `${videoId}.mp4`;
+                    fileName = `${videoId}.mkv`;
                     downloadOutput = path.resolve(__dirname, 'downloads', fileName);
                     const finalDir = fileName.substring(0, fileName.lastIndexOf('.'))
                     processedFilesDir = path.resolve(processedFilesDir, finalDir)
@@ -265,39 +275,40 @@ app.post('/demucs/:videoId', async (req, res) => {
                 })
                 .on('finish', () => {
                     console.log('finished downloading')
-                    console.log('Lets convert it to mp3')
-                    const newAudioFilePath = downloadOutput.replace('mp4', 'mp3')
-                    const ffmpegArgs = [
-                        '-copyts',
-                        '-err_detect', 'ignore_err',
-                        '-i', downloadOutput,
-                        '-vn',
-                        '-acodec', 'libmp3lame',
-                        '-ac', '2',
-                        '-q:a', '6',
-                        '-loglevel', 'error',
-                        '-map', 'a',
-                        '-vsync', '0',
-                        newAudioFilePath
-                    ]
+                    // console.log('Lets convert it to mp3')
+                    const newAudioFilePath = downloadOutput
+                    // const ffmpegArgs = [
+                    //     '-err_detect', 'ignore_err',
+                    //     '-loglevel', 'debug',
+                    //     '-i', downloadOutput,
+                    //     '-c:a', 'aac',
+                    //     '-vbr', '5',
+                    //     '-cutoff', '18000',
+                    //     '-q:a', '2',
+                    //     '-flags', '+global_header',
+                    //     '-map', 'a',
+                    //     '-vn',
+                    //     newAudioFilePath
+                    // ]
+                    // //const ffmpegArgs = `-i ${downloadOutput} -q:a 0 -loglevel error -map a ${newAudioFilePath}`
 
-                    console.log(ffmpeg + ' ' + ffmpegArgs)
+                    // console.log(ffmpeg + ' ' + ffmpegArgs)
 
-                    const process = child_process.spawnSync(ffmpeg, ffmpegArgs);
-                    if (process.stderr) {
-                        console.log('Stderr: ' + process.stderr.toString());
-                    } else if (process.stdout) {
-                        console.log('Stdout: ' + process.stdout.toString())
-                    }
-                    console.log('Process: ' + process);
-                    console.log('Finished conversion to MP3');
-                    fs.unlink(downloadOutput, (err) => {
+                    // const process = child_process.spawnSync(ffmpeg, ffmpegArgs);
+                    // if (process.stderr) {
+                    //     console.log('Stderr: ' + process.stderr.toString());
+                    // } else if (process.stdout) {
+                    //     console.log('Stdout: ' + process.stdout.toString())
+                    // }
+                    // console.log('Process: ' + process);
+                    // console.log('Finished conversion to MP3');
+                    /*fs.unlink(downloadOutput, (err) => {
                         if (err) {
                             console.log(`Could not remove file. Error: ${err}`)
                         } else {
                             console.log(`File ${downloadOutput} deleted successfully`)
                         }
-                    })
+                    })*/
                     fs.access(newAudioFilePath, async (err) => {
                         if (err) {
                             console.log(`File ${newAudioFilePath} has not been generated.`)
@@ -363,13 +374,42 @@ app.post('/demucs/:videoId', async (req, res) => {
 
         } else {
             db.updatePlayCount(videoId)
-            res.status(200).send(new ApiResponse(1, 'Video already processed.').jsonify())
+            res.status(200).send(new ApiResponse(1, 'Video already processed.', { "track_id": videoId }).jsonify())
         }
     } catch (e) {
         console.error(e)
         res.status(200).send(new ApiResponse(-2, "Internal error").jsonify())
     }
-});
+};
+
+
+app.get('/info/:videoId', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json')
+    console.log('Accessed: /demucs')
+    var { videoId } = req.params
+    const urlParam = videoId
+    console.log(req.body)
+    const tracksToMix = req.body.tracksPicker
+    var processedFilesDir = targetDir;
+    console.log(`Video ID: ${videoId}`)
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
+    // let info = await ytdl.getInfo(videoId)
+    // let audioFormats = ytdl.filterFormats(info.formats, 'audioonly')
+    // res.status(200).json(audioFormats)
+    let ytStream = ytdl(videoUrl, {
+        filter: "audioonly",
+        quality: 'highestaudio',
+        highWaterMark: 1 << 25
+    })
+        .on('info', async (info) => {
+            res.status(200).json(ytStream)
+        })
+
+
+    ytStream.pipe(fs.createWriteStream(`C:\\Users\\msk14\\Desktop\\Projectes\\demucser\\downloads\\${videoId}`))
+
+})
+
 
 app.get('/availableTracks', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -392,6 +432,18 @@ app.get('/availableTracks', async (req, res) => {
         items: tracks
     }
     res.status(200).send(JSON.stringify(response));
+})
+
+app.get('/progress/:videoId', async (req, res) => {
+    const { videoId } = req.params
+    var rowFound = await db.getItemByVideoId(videoId);
+    res.json(new ApiResponse(0, "Progress check", rowFound))
+})
+
+app.get('/details/:videoId', async (req, res) => {
+    const { videoId } = req.params
+    var rowFound = await db.getItemByVideoId(videoId);
+    res.json(new ApiResponse(0, "Track details", rowFound))
 })
 
 async function checkVideoAlreadyDemucsed(id) {

@@ -5,11 +5,10 @@ import { Database } from './db/database'
 import path from 'path'
 require('dotenv').config()
 import process from 'process'
-import { StatusEntity } from './model/entities/status'
+import { IStatus } from './model/status'
 import { AppConfig } from './app-config'
-import { ITrack } from './model/entities/track'
+import { ITrack } from './model/track'
 import { ApiResponse } from './db/api-response'
-import { TracksRepository } from './model/repositories/track-repository'
 
 (async () => {
 
@@ -19,7 +18,7 @@ import { TracksRepository } from './model/repositories/track-repository'
     const settings = new DatabaseSettings()
     settings.init()
     db = new Database(settings)
-    const tracksRepository = TracksRepository.create(db)
+
     app.get('/', (req, res) => {
         db.getAllItems().then((rows) => {
             console.log(rows)
@@ -27,7 +26,8 @@ import { TracksRepository } from './model/repositories/track-repository'
             res.json(rows)
         })
     })
-    app.get('/progress/:videoId', (req, res) => {
+
+    app.get('/:videoId', (req, res) => {
         const { videoId } = req.params
         db.getItemByVideoId(videoId)
             .then((item) => {
@@ -35,16 +35,6 @@ import { TracksRepository } from './model/repositories/track-repository'
             })
     })
 
-    app.get('/progress/:videoId', (req, res) => {
-        try {
-            const { videoId } = req.params
-            tracksRepository.getByKey(videoId).then(track => {
-                res.json(track)
-            })
-        } catch (error) {
-
-        }
-    })
     app.get('/insert/:videoId', (req, res) => {
         const { videoId } = req.params
         const track: ITrack = {

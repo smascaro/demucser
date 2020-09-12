@@ -1,16 +1,16 @@
 import mysql = require('mysql2/promise')
 import { DatabaseSettings } from './database-settings'
-import { IStatus } from '../model/status'
-import { ITrack, ITrackResult } from '../model/track'
-import { IQueryCriteria } from './query-criteria'
-import { IQuality } from '../model/quality'
-import { IConversion } from '../model/conversion'
+import { StatusEntity } from '../model/entities/status'
+import { ITrack, ITrackResult } from '../model/entities/track'
+import { QueryOptions, QueryOptionsSort } from './query-criteria'
+import { IQuality } from '../model/entities/quality'
+import { IConversion } from '../model/entities/conversion'
 import { ResultSetHeader } from 'mysql2/promise'
 
 export class Database {
-    _pool: mysql.Pool
+    pool: mysql.Pool
     constructor(settings: DatabaseSettings) {
-        this._pool = mysql.createPool({
+        this.pool = mysql.createPool({
             host: settings.host,
             user: settings.user,
             password: settings.password,
@@ -18,14 +18,14 @@ export class Database {
         })
     }
 
-    getAvailableStatuses(): Promise<IStatus[]> {
+    getAvailableStatuses(): Promise<StatusEntity[]> {
         return new Promise((resolve, reject) => {
             let query = "select `key`, `value` from sm01.tstatus"
             try {
-                this._pool.query(query)
+                this.pool.query(query)
                     .then((rows) => {
                         console.log(rows);
-                        resolve(rows[0] as IStatus[])
+                        resolve(rows[0] as StatusEntity[])
                     })
                     .catch((e) => {
                         console.error(e)
@@ -41,7 +41,7 @@ export class Database {
         })
     }
 
-    getAllItems(criteria?: IQueryCriteria): Promise<ITrack[]> {
+    getAllItems(criteria?: QueryOptions): Promise<ITrack[]> {
         return new Promise((resolve, reject) => {
             let postQueryConditions = " "
             if (criteria) {
@@ -50,13 +50,13 @@ export class Database {
                 }
                 if (criteria.sort) {
                     switch (criteria.sort) {
-                        case "newest":
+                        case QueryOptionsSort.NEWEST:
                             postQueryConditions += " order by `requestedTimestamp` desc"
                             break;
-                        case "oldest":
+                        case QueryOptionsSort.OLDEST:
                             postQueryConditions += " order by `requestedTimestamp` asc"
                             break;
-                        case "popular":
+                        case QueryOptionsSort.POPULAR:
                             postQueryConditions += " order by `playedCount` desc"
                             break;
                         default:
@@ -93,7 +93,7 @@ export class Database {
                         from sm01.tseparated as tsep \
                         inner join sm01.tstatus as tstat on tstat.`key` = tsep.`status`" + postQueryConditions
             try {
-                this._pool.query(query)
+                this.pool.query(query)
                     .then((rows) => {
                         resolve(<ITrack[]>rows[0])
                     })
@@ -107,7 +107,7 @@ export class Database {
     getAvailableQualities(): Promise<IQuality[]> {
         return new Promise((resolve, reject) => {
             let query = "SELECT `key`, `format`, `isDefault` FROM sm01.tqualitysettings;"
-            this._pool.query(query)
+            this.pool.query(query)
                 .then((rows) => {
                     console.log(rows);
                     resolve(<IQuality[]>rows[0])
@@ -123,7 +123,7 @@ export class Database {
             let query = `select tsep.* 
             from sm01.tseparated as tsep 
             where tsep.\`videoId\` = ?`
-            this._pool.query<ITrackResult[]>(query, [videoId])
+            this.pool.query<ITrackResult[]>(query, [videoId])
                 .then(([rows]) => {
                     if (rows.length > 0 && rows[0]) {
                         resolve(rows[0])
@@ -148,7 +148,7 @@ export class Database {
                 }
                 let queryConversions = 'SELECT `separatedId`, `qualityKey` FROM sm01.tconverted where `separatedId` = ?;'
                 let args = [item?.id]
-                this._pool.query<IConversion[]>(queryConversions, args)
+                this.pool.query<IConversion[]>(queryConversions, args)
                     .then((rows) => {
                         console.log(rows)
                         resolve(rows[0])
@@ -176,7 +176,7 @@ export class Database {
                     itemToInsert.secondsLong,
                     itemToInsert.thumbnailUrl]
                 console.log(`Query: ${insertQuery}`)
-                this._pool.execute(insertQuery, args)
+                this.pool.execute(insertQuery, args)
                     .then((data) => {
                         console.log(data)
                         const result = data[0] as ResultSetHeader
@@ -202,7 +202,7 @@ export class Database {
                     if (item && item != null) {
                         let queryInsert = 'insert into `sm01`.`tconverted`(`separatedId`,`qualityKey`) values(?,?)';
                         let args = [item?.id, quality.toLowerCase()];
-                        this._pool.execute(queryInsert, args)
+                        this.pool.execute(queryInsert, args)
                             .then((data) => {
                                 const result = data[0] as ResultSetHeader
                                 if (result.affectedRows > 0) {

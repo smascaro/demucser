@@ -4,7 +4,8 @@ import path from "path"
 import { expect } from "chai"
 import { DatabaseSettings } from "../migration/db/database-settings"
 describe('Database', () => {
-    it('should find a database configuration file', () => {
+
+    /*it('should find a database configuration file', () => {
         fs.readFile(path.resolve(__dirname, '../config/db.json'), 'utf8', (error, data) => {
             expect(error == null || error == undefined).to.be.true
             expect(data).to.not.be.undefined
@@ -43,5 +44,5 @@ describe('Database', () => {
 
         })
         expect(true).to.be.true
-    })
+    })*/
 })
